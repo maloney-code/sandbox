@@ -1,0 +1,248 @@
+import moment from 'moment';
+import PropTypes from 'prop-types';
+import React from 'react';
+import DatePicker from 'react-datepicker';
+import { Controller, useFormContext } from 'react-hook-form';
+import { useSelector } from 'react-redux';
+import Select from 'react-select';
+import createFieldSchema from '../services/fieldSchemaFactory';
+import fieldTypeConstants from '../services/fieldTypeContants';
+import { removeNonWordCharacters } from '../services/utilityService';
+
+const Field = (props) => {
+    const {
+        BOOLEAN, DATE, DECIMAL, INTEGER, MONEY, OPTION, PERCENT, TEXT,
+    } = fieldTypeConstants;
+    const { field } = props;
+
+ 
+    const {
+        className,
+        defaultValue,
+        fieldDataType, 
+        inline = false,
+        isMultiSelect,
+        label,
+        name,
+        onParentChange,
+        options,
+        smallForm = true,
+        type,
+        validation,
+        value,
+    } = field;
+ 
+    const {
+        register, watch, control, errors, setValue, getValues,
+    } = useFormContext();
+
+    let fieldOutput;
+    const handleRadio = (e:any) => {
+        console.log('handleRadio', {
+            type, name, to: e.target?.value, from: value,
+        });
+        setValue(name, e.target?.value, true);
+    };
+
+    const handleChange = (e:any) => {
+        if (typeof (onParentChange) === 'function') {
+            const payload = getValues();
+            if (type === 'Option') {
+                onParentChange(name, payload[name], value);
+            }
+        }
+        console.log('handleChange', {
+            type, name, to: e.target?.value, from: value,
+        });
+    };
+
+    let _registerOptions = {};
+    if (field.isRequired) {
+        _registerOptions.required = `${field.label} is required`;
+    }
+
+    if (field.validation) {
+        _registerOptions = { ..._registerOptions, ...validation };
+    }
+
+    switch (fieldDataType) {
+    case TEXT:
+        fieldOutput = (
+            <input
+                type="text"
+                className={`form-control ${className}`}
+                name={name}
+                onChange={handleChange}
+                id={name}
+                defaultValue={value?.toString()}
+                ref={register(_registerOptions)}
+            />
+        );
+        break;
+
+    case DATE: // todo, change minDate assignment
+        fieldOutput = (
+            <Controller
+                as={(
+                    <DatePicker
+                        minDate={field.minDate ? ((field.minDate instanceof Date) ? field.minDate : moment(field.minDate, 'MM/DD/Y').toDate()) : undefined}
+                        onSelect={handleChange}
+                        className={`form-control ${className}`}
+                        autoComplete="off"
+                    />
+                )}
+                defaultValue={value ? ((value instanceof Date) ? value : moment(value, 'MM/DD/Y').toDate()) : undefined}
+                rules={register(_registerOptions)}
+                control={control}
+                name={name}
+                id={name}
+                valueName="selected"
+            />
+        );
+        break;
+
+    case INTEGER:
+        fieldOutput = (
+            <input
+                type="number"
+                className={`form-control ${className}`}
+                name={name}
+                id={name}
+                onChange={handleChange}
+                defaultValue={value?.toString()}
+                ref={register(_registerOptions)}
+            />
+        );
+        break;
+
+    case DECIMAL:
+    case MONEY:
+    case PERCENT:
+        fieldOutput = (
+            <input
+                type="number"
+                className={`form-control ${className}`}
+                name={name}
+                id={name}
+                defaultValue={value?.toString()}
+                onChange={handleChange}
+                ref={register(_registerOptions)}
+            />
+        );
+        break;
+
+    case BOOLEAN:
+        fieldOutput = (
+            <input
+                type="checkbox"
+                className={`form-control ${className}`}
+                name={name}
+                id={name}
+                onChange={handleChange}
+                ref={register(_registerOptions)}
+            />
+        );
+        break;
+
+    case OPTION:
+        if (isMultiSelect === true) {
+            // multiselect
+            fieldOutput = (
+                <Controller
+                    as={(
+                        <Select
+                            options={field.options}
+                            styles={{ menu: (styles) => ({ ...styles, zIndex: 999 }) }}
+                            isMulti
+                            getOptionValue={(option) => option.value}
+                            getOptionLabel={(option) => option.name}
+                        />
+                    )}
+                    name={name}
+                    control={control}
+                    rules={register(_registerOptions)}
+                    onChange={([selected]) => (selected ? [...selected] : null)}
+                    valueName="value"
+                    defaultValue={field.value}
+                />
+            );
+        } else if (options.length <= (smallForm === true ? 3 : 4)) {
+            // radio
+            fieldOutput = (
+                <div className="btn-group">
+                    {field.options.map((option) => (
+                        <label
+                            htmlFor={`${name}_${removeNonWordCharacters(option.name)}`}
+                            key={`${name}_${removeNonWordCharacters(option.name)}`}
+                            className={`btn btn-default${watch(name, value) === option.value ? ' active' : ''}`}
+                        >
+                            <input
+                                type="radio"
+                                defaultChecked={option.value === value}
+                                id={`${name}_${removeNonWordCharacters(option.name)}`}
+                                name={name}
+                                value={option.value}
+                                ref={register}
+                                onChange={handleRadio}
+                            />
+                            {option.name}
+                        </label>
+                    ))}
+                </div>
+            );
+        } else {
+            // select
+            fieldOutput = (
+                <Controller
+                    as={(
+                        <Select
+                            styles={{ menu: (styles) => ({ ...styles, zIndex: 999 }) }}
+                            options={field.options}
+                            getOptionValue={(option) => option.value}
+                            getOptionLabel={(option) => option.name}
+                        />
+                    )}
+                    name={name}
+                    control={control}
+                    rules={register(_registerOptions)}
+                    onChange={([selected]) => selected}
+                    defaultValue={value}
+                />
+            );
+        }
+        break;
+    default:
+        break;
+    }
+
+    return (
+        <>
+            {!inline
+            && (
+                <div className="form-group">
+                    <label htmlFor={name}>{label}</label>
+                    {fieldOutput}
+                    {errors.name && <p className="planerror">{errors[name].message || 'Error with this field'}</p>}
+                </div>
+            )}
+            {inline && (
+                <div className="inline-field">
+                    <div className="d-flex justify-content-start align-items-center">
+                        <div className="label-cell">
+                            <label htmlFor={name}>
+                                {label}
+                            </label>
+                        </div>
+                        <div className="input-cell">
+                            {fieldOutput}
+                        </div>
+                    </div>
+                    {errors[name] && <p className="planerror">{errors[name].message || 'Error with this field'}</p>}
+                </div>
+            )}
+        </>
+    );
+};
+
+
+export default Field;
